@@ -16,16 +16,24 @@ class MusicCog(commands.Cog):
         self.now_playing_msg = {}
         self.elapsed = {}
 
-        self.YTDL_OPTIONS = {'format': 'bestaudio[ext=webm]/bestaudio', 'quiet': True, 'noplaylist': True}
+        self.YTDL_OPTIONS = {
+            "format": "bestaudio",
+            "quiet": True,
+            "nocheckcertificate": True,
+            "ignoreerrors": True,
+            "default_search": "ytsearch",
+            "source_address": "0.0.0.0"
+        }
+
         self.FFMPEG_OPTIONS = {
-        "before_options": (
-        "-reconnect 1 "
-        "-reconnect_streamed 1 "
-        "-reconnect_delay_max 5 "
-        "-protocol_whitelist file,http,https,tcp,tls,crypto"
-    ),
-    "options": "-vn"
-}
+            "before_options": (
+                "-reconnect 1 "
+                "-reconnect_streamed 1 "
+                "-reconnect_delay_max 5 "
+                "-protocol_whitelist file,http,https,tcp,tls,crypto"
+            ),
+                "options": "-vn"
+        }
 
 
     # ---------------- Commands ----------------
