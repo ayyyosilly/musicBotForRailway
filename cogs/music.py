@@ -18,10 +18,15 @@ class MusicCog(commands.Cog):
 
         self.YTDL_OPTIONS = {'format': 'bestaudio[ext=webm]/bestaudio', 'quiet': True, 'noplaylist': True}
         self.FFMPEG_OPTIONS = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn',
-            'executable': os.environ.get("FFMPEG_PATH", "ffmpeg")
-        }
+        "before_options": (
+        "-reconnect 1 "
+        "-reconnect_streamed 1 "
+        "-reconnect_delay_max 5 "
+        "-protocol_whitelist file,http,https,tcp,tls,crypto"
+    ),
+    "options": "-vn"
+}
+
 
     # ---------------- Commands ----------------
     @commands.command(name="join", aliases=["j"])
@@ -146,11 +151,19 @@ class MusicCog(commands.Cog):
         self.is_paused[guild_id] = False
         self.elapsed[guild_id] = 0
 
-        song = self.queue[guild_id][self.queue_index[guild_id]]
-        self.vc[guild_id].play(
-            discord.FFmpegPCMAudio(song['source'], **self.FFMPEG_OPTIONS),
-            after=lambda e: asyncio.create_task(self._after_song(ctx))
+        audio = await discord.FFmpegOpusAudio.from_probe(
+            song["source"],
+            **self.FFMPEG_OPTIONS
         )
+
+        self.vc[guild_id].play(
+            audio,
+            after=lambda e: asyncio.run_coroutine_threadsafe(
+                self._after_song(ctx),
+                self.bot.loop
+            )
+        )
+
 
         embed = discord.Embed(color=discord.Color.green())
         if 'thumbnail' in song:
