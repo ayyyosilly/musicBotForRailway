@@ -16,7 +16,12 @@ class MusicCog(commands.Cog):
         self.now_playing_msg = {}
         self.elapsed = {}
 
-        self.YTDL_OPTIONS = {'format': 'bestaudio', 'noplaylist': True}
+        self.YTDL_OPTIONS = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'extract_flat': False
+        }
         self.FFMPEG_OPTIONS = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn',
@@ -79,58 +84,6 @@ class MusicCog(commands.Cog):
         if not self.is_playing[guild_id]:
             await self._play_next(ctx)
 
-    @commands.command(name="skip", aliases=["s", "next"])
-    async def skip(self, ctx):
-        guild_id = ctx.guild.id
-        if guild_id in self.vc and self.vc[guild_id].is_playing():
-            self.vc[guild_id].stop()
-            await ctx.send(embed=discord.Embed(description="Пропущен текущий трек", color=discord.Color.green()))
-        else:
-            await ctx.send(embed=discord.Embed(description="Сейчас ничего не играет", color=discord.Color.red()))
-
-    @commands.command(name="pause", aliases=["ps"])
-    async def pause(self, ctx):
-        guild_id = ctx.guild.id
-        if guild_id in self.vc and self.vc[guild_id].is_playing():
-            self.vc[guild_id].pause()
-            self.is_paused[guild_id] = True
-            self.is_playing[guild_id] = False
-            await ctx.send(embed=discord.Embed(description="Пауза включена", color=discord.Color.green()))
-        else:
-            await ctx.send(embed=discord.Embed(description="Сейчас ничего не играет", color=discord.Color.red()))
-
-    @commands.command(name="resume", aliases=["r"])
-    async def resume(self, ctx):
-        guild_id = ctx.guild.id
-        if guild_id in self.vc and self.is_paused.get(guild_id, False):
-            self.vc[guild_id].resume()
-            self.is_paused[guild_id] = False
-            self.is_playing[guild_id] = True
-            await ctx.send(embed=discord.Embed(description="Воспроизведение возобновлено", color=discord.Color.green()))
-        else:
-            await ctx.send(embed=discord.Embed(description="Сейчас нет паузы", color=discord.Color.red()))
-
-    @commands.command(name="previous", aliases=["prev"])
-    async def previous(self, ctx):
-        guild_id = ctx.guild.id
-        if self.queue_index.get(guild_id, 0) > 1:
-            self.queue_index[guild_id] -= 2
-            self.vc[guild_id].stop()
-            await ctx.send(embed=discord.Embed(description="Проигрывается предыдущий трек", color=discord.Color.green()))
-        else:
-            await ctx.send(embed=discord.Embed(description="Предыдущего трека нет", color=discord.Color.red()))
-
-    @commands.command(name="queue", aliases=["q"])
-    async def queue_cmd(self, ctx):
-        guild_id = ctx.guild.id
-        if guild_id not in self.queue or not self.queue[guild_id]:
-            await ctx.send(embed=discord.Embed(description="Очередь пуста", color=discord.Color.red()))
-            return
-        embed = discord.Embed(title="Очередь треков", color=discord.Color.green())
-        for i, song in enumerate(self.queue[guild_id][self.queue_index[guild_id]:self.queue_index[guild_id]+10], start=1):
-            embed.add_field(name=f"{i}. {song.get('title', 'Неизвестно')}", value=f"Автор: {song.get('uploader', 'Unknown')}", inline=False)
-        await ctx.send(embed=embed)
-
     # ---------------- Internal ----------------
     async def _play_next(self, ctx):
         guild_id = ctx.guild.id
@@ -139,7 +92,7 @@ class MusicCog(commands.Cog):
             self.elapsed[guild_id] = 0
             return
 
-        # Удаляем старый embed
+        # Удаляем предыдущий embed
         try:
             if guild_id in self.now_playing_msg and self.now_playing_msg[guild_id]:
                 await self.now_playing_msg[guild_id].delete()
@@ -149,12 +102,16 @@ class MusicCog(commands.Cog):
         self.is_playing[guild_id] = True
         self.is_paused[guild_id] = False
         self.elapsed[guild_id] = 0
+
         song = self.queue[guild_id][self.queue_index[guild_id]]
+
+        # Воспроизведение через поток
         self.vc[guild_id].play(
             discord.FFmpegPCMAudio(song['source'], **self.FFMPEG_OPTIONS),
-            after=lambda e: self.bot.loop.create_task(self._after_song(ctx))
+            after=lambda e: asyncio.create_task(self._after_song(ctx))
         )
 
+        # Создание embed
         embed = discord.Embed(title=None, description=None, color=discord.Color.green())
         if 'thumbnail' in song:
             embed.set_image(url=song['thumbnail'])
@@ -163,6 +120,7 @@ class MusicCog(commands.Cog):
         embed.add_field(name="Трек", value=f"**{title}** – {author}", inline=False)
         embed.add_field(name="Прогресс", value="0:00 ─+─────────────────── 0:00", inline=False)
 
+        # Кнопки управления
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="⏮ Previous", style=discord.ButtonStyle.secondary, custom_id="previous"))
         view.add_item(discord.ui.Button(label="⏯ Pause/Resume", style=discord.ButtonStyle.primary, custom_id="pause_resume"))
@@ -172,6 +130,7 @@ class MusicCog(commands.Cog):
         msg = await ctx.send(embed=embed, view=view)
         self.now_playing_msg[guild_id] = msg
 
+        # Обработка нажатий кнопок
         for button in view.children:
             async def button_callback(interaction: discord.Interaction, btn=button):
                 if interaction.user != ctx.author:
@@ -196,9 +155,9 @@ class MusicCog(commands.Cog):
                         self.queue_index[guild_id] -= 2
                         self.vc[guild_id].stop()
                 await interaction.response.defer()
-
             button.callback = button_callback
 
+        # Запуск таймера
         asyncio.create_task(self.start_timer(ctx, guild_id, int(song.get('duration', 0))))
 
     async def start_timer(self, ctx, guild_id, duration):
@@ -238,14 +197,14 @@ class MusicCog(commands.Cog):
                 if search.startswith("http"):
                     info = ydl.extract_info(search, download=False)
                     if "entries" in info:
-                        return [{'source': track['formats'][0]['url'], 'title': track['title'], 'thumbnail': track.get('thumbnail'),
+                        return [{'source': track['url'], 'title': track['title'], 'thumbnail': track.get('thumbnail'),
                                  'duration': track.get('duration'), 'uploader': track.get('uploader')} for track in info['entries']]
                     else:
-                        return [{'source': info['formats'][0]['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
+                        return [{'source': info['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
                                  'duration': info.get('duration'), 'uploader': info.get('uploader')}]
                 else:
                     info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
-                    return [{'source': info['formats'][0]['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
+                    return [{'source': info['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
                              'duration': info.get('duration'), 'uploader': info.get('uploader')}]
             except Exception:
                 return None
