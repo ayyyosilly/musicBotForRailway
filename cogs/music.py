@@ -16,18 +16,14 @@ class MusicCog(commands.Cog):
         self.now_playing_msg = {}
         self.elapsed = {}
 
-        self.YTDL_OPTIONS = {
-            'format': 'bestaudio[ext=webm]/bestaudio',
-            'quiet': True,
-            'noplaylist': True
-        }
+        self.YTDL_OPTIONS = {'format': 'bestaudio[ext=webm]/bestaudio', 'quiet': True, 'noplaylist': True}
         self.FFMPEG_OPTIONS = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn',
             'executable': os.environ.get("FFMPEG_PATH", "ffmpeg")
         }
 
-    # ---------------- Команды ----------------
+    # ---------------- Commands ----------------
     @commands.command(name="join", aliases=["j"])
     async def join(self, ctx):
         if ctx.author.voice is None:
@@ -125,7 +121,8 @@ class MusicCog(commands.Cog):
     async def queue_cmd(self, ctx):
         guild_id = ctx.guild.id
         if guild_id not in self.queue or not self.queue[guild_id]:
-            return await ctx.send(embed=discord.Embed(description="Очередь пуста", color=discord.Color.red()))
+            await ctx.send(embed=discord.Embed(description="Очередь пуста", color=discord.Color.red()))
+            return
         embed = discord.Embed(title="Очередь треков", color=discord.Color.green())
         for i, song in enumerate(self.queue[guild_id][self.queue_index[guild_id]:self.queue_index[guild_id]+10], start=1):
             embed.add_field(name=f"{i}. {song.get('title', 'Неизвестно')}", value=f"Автор: {song.get('uploader', 'Unknown')}", inline=False)
@@ -150,7 +147,6 @@ class MusicCog(commands.Cog):
         self.elapsed[guild_id] = 0
 
         song = self.queue[guild_id][self.queue_index[guild_id]]
-
         self.vc[guild_id].play(
             discord.FFmpegPCMAudio(song['source'], **self.FFMPEG_OPTIONS),
             after=lambda e: asyncio.create_task(self._after_song(ctx))
