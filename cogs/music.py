@@ -21,9 +21,15 @@ class MusicCog(commands.Cog):
         }
 
         self.FFMPEG_OPTIONS = {
-            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            "options": "-vn"
+            "before_options": (
+                "-reconnect 1 "
+                "-reconnect_streamed 1 "
+                "-reconnect_delay_max 5 "
+                "-protocol_whitelist file,http,https,tcp,tls"
+            ),
+            "options": "-vn -loglevel error"
         }
+
 
     # -------------------- COMMANDS --------------------
 
