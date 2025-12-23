@@ -240,10 +240,23 @@ class MusicCog(commands.Cog):
                         pass
             await asyncio.sleep(0.25)
 
-    async def _after_song(self, ctx):
-        guild_id = ctx.guild.id
-        self.queue_index[guild_id] += 1
-        await self._play_next(ctx)
+    def after_playing(error):
+        if error:
+            print("PLAYER ERROR:", error)
+        fut = asyncio.run_coroutine_threadsafe(
+            self._after_song(ctx),
+            self.bot.loop
+        )
+        try:
+            fut.result()
+        except:
+            pass
+
+    self.vc[guild_id].play(
+        discord.FFmpegPCMAudio(song['source'], **self.FFMPEG_OPTIONS),
+        after=after_playing
+    )
+
 
     async def get_songs(self, search):
         with youtube_dl.YoutubeDL(self.YTDL_OPTIONS) as ydl:
