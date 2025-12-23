@@ -3,8 +3,12 @@ import os
 from discord.ext import commands
 import discord
 
-# Токен через переменные окружения
+# Загружаем токен из переменной окружения
 TOKEN = os.environ.get("DISCORD_TOKEN")
+
+# Проверка токена
+if not TOKEN:
+    raise ValueError("DISCORD_TOKEN не задан! Задайте переменную окружения на Railway.")
 
 # Настраиваем интенты
 intents = discord.Intents.default()
