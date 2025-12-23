@@ -246,23 +246,28 @@ class MusicCog(commands.Cog):
         await self._play_next(ctx)
 
     async def get_songs(self, search):
-        ydl_opts = self.YTDL_OPTIONS.copy()
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with youtube_dl.YoutubeDL(self.YTDL_OPTIONS) as ydl:
             try:
-                if search.startswith("http"):
-                    info = ydl.extract_info(search, download=False)
-                    if "entries" in info:
-                        return [{'source': track['url'], 'title': track['title'], 'thumbnail': track.get('thumbnail'),
-                                 'duration': track.get('duration'), 'uploader': track.get('uploader')} for track in info['entries']]
-                    else:
-                        return [{'source': info['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
-                                 'duration': info.get('duration'), 'uploader': info.get('uploader')}]
-                else:
-                    info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
-                    return [{'source': info['url'], 'title': info['title'], 'thumbnail': info.get('thumbnail'),
-                             'duration': info.get('duration'), 'uploader': info.get('uploader')}]
-            except Exception:
+                info = ydl.extract_info(search, download=False)
+
+                if "entries" in info:
+                    info = info["entries"][0]
+
+                formats = [f for f in info["formats"] if f.get("acodec") != "none"]
+                audio = formats[0]["url"]
+
+                return [{
+                    "source": audio,
+                    "title": info.get("title"),
+                    "duration": info.get("duration"),
+                    "thumbnail": info.get("thumbnail"),
+                    "uploader": info.get("uploader")
+                }]
+    
+            except Exception as e:
+                print("YTDLP ERROR:", e)
                 return None
+
 
 async def setup(bot):
     await bot.add_cog(MusicCog(bot))
